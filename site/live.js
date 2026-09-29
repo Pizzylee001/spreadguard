@@ -1,25 +1,56 @@
 /* SpreadGuard live market data layer.
  *
- * Fetches the real BTC price from a public no-key API and drives the live
+ * Fetches the real BTC price from public no-key APIs and drives the live
  * figures on the desk page. Runs in the browser, so it works on a static
- * Vercel deploy. If the fetch fails the page keeps the last known value and
- * shows the source as offline, rather than faking a price.
+ * Vercel deploy. Several providers are tried in order so one blocked or
+ * rate-limited host does not blank the demo. If every provider fails the page
+ * says "offline" and keeps the last known value rather than faking a price.
  *
- * CoinGecko is used because it needs no key and has a generous free tier.
- * Venue: spot BTC/USD, labeled honestly in the UI.
+ * Providers are spot BTC/USD unless noted, and the venue is labeled in the UI.
  */
 
 const SG = (() => {
-  const ENDPOINTS = [
-    "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true",
+  // Each provider: url, and a function that pulls price and optional 24h change.
+  const PROVIDERS = [
+    {
+      name: "Coinbase spot",
+      url: "https://api.coinbase.com/v2/prices/BTC-USD/spot",
+      parse: (j) => ({ price: Number(j?.data?.amount), change: null }),
+    },
+    {
+      name: "Binance spot",
+      url: "https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT",
+      parse: (j) => ({
+        price: Number(j?.lastPrice),
+        change: Number(j?.priceChangePercent),
+      }),
+    },
+    {
+      name: "Gemini spot",
+      url: "https://api.gemini.com/v1/pubticker/btcusd",
+      parse: (j) => ({ price: Number(j?.last), change: null }),
+    },
+    {
+      name: "Kraken spot",
+      url: "https://api.kraken.com/0/public/Ticker?pair=XBTUSD",
+      parse: (j) => {
+        const r = j?.result?.XBTUSD || Object.values(j?.result || {})[0];
+        const price = Number(r?.c?.[0]);
+        const open = Number(r?.o);
+        const change =
+          isFinite(price) && isFinite(open) && open !== 0
+            ? ((price - open) / open) * 100
+            : null;
+        return { price, change };
+      },
+    },
   ];
 
   const state = {
     price: null,
     change24h: null,
-    volume24h: null,
     status: "connecting", // connecting | live | offline
-    updatedMs: null,
+    source: null,
     lastGoodMs: null,
   };
 
@@ -31,36 +62,38 @@ const SG = (() => {
   };
   const emit = () => listeners.forEach((fn) => fn(state));
 
-  async function fetchOnce() {
-    for (const url of ENDPOINTS) {
-      try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 8000);
-        const res = await fetch(url, { signal: ctrl.signal, cache: "no-store" });
-        clearTimeout(t);
-        if (!res.ok) continue;
-        const j = await res.json();
-        const btc = j && j.bitcoin;
-        if (!btc || typeof btc.usd !== "number") continue;
+  async function tryProvider(p) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 7000);
+    try {
+      const res = await fetch(p.url, { signal: ctrl.signal, cache: "no-store" });
+      if (!res.ok) return null;
+      const j = await res.json();
+      const { price, change } = p.parse(j);
+      if (!isFinite(price) || price <= 0) return null;
+      return { price, change: isFinite(change) ? change : null };
+    } catch (e) {
+      return null;
+    } finally {
+      clearTimeout(t);
+    }
+  }
 
-        state.price = btc.usd;
-        state.change24h =
-          typeof btc.usd_24h_change === "number" ? btc.usd_24h_change : null;
-        state.volume24h =
-          typeof btc.usd_24h_vol === "number" ? btc.usd_24h_vol : null;
+  async function fetchOnce() {
+    for (const p of PROVIDERS) {
+      const got = await tryProvider(p);
+      if (got) {
+        state.price = got.price;
+        state.change24h = got.change;
         state.status = "live";
-        state.updatedMs = Date.now();
+        state.source = p.name;
         state.lastGoodMs = Date.now();
         emit();
-        return true;
-      } catch (e) {
-        // try the next endpoint
+        return;
       }
     }
-    // no endpoint answered
     if (state.status !== "live") state.status = "offline";
     emit();
-    return false;
   }
 
   function start(intervalMs = 30000) {
@@ -79,7 +112,7 @@ const SG = (() => {
           maximumFractionDigits: dp,
         });
 
-  return { state, subscribe, start, fmtUsd };
+  return { state, subscribe, start, fmtUsd, providers: PROVIDERS.map((p) => p.name) };
 })();
 
 // Expose on window explicitly. A top-level `const` in a classic script does

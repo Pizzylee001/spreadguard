@@ -331,7 +331,8 @@
         if (s.change24h!=null){
           changeEl.textContent=(s.change24h>=0?"+":"")+s.change24h.toFixed(2)+"%";
           changeEl.className="data "+(s.change24h>=0?"up":"down");
-        }
+        } else { changeEl.textContent=""; changeEl.className="data"; }
+        srcEl.textContent=s.source||"spot BTC/USD";
         if (s.price!=null && midEl){
           midEl.textContent=SG.fmtUsd(s.price,2);
         }
