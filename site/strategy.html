@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>How it decides - SpreadGuard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Lexend:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<a class="skip" href="#main">Skip to strategy</a>
+
+<header>
+  <div class="navpill">
+    <a class="nm" href="desk.html">SpreadGuard <small>BTC-USDT perpetual</small></a>
+    <nav aria-label="Desk routes">
+      <a href="desk.html">Live desk</a>
+      <a href="journal.html">Decision journal</a>
+      <a href="limits.html">Risk limits</a>
+      <a href="strategy.html" aria-current="page">How it decides</a>
+    </nav>
+    <span class="feed" id="feed"><span class="beacon" aria-hidden="true"></span> Feed live, 250 ms</span>
+  </div>
+</header>
+
+<main id="main">
+  <div class="pagehead">
+    <div class="eyebrow">STRATEGY NOTE</div>
+    <h1>How SpreadGuard decides</h1>
+    <p>A market maker gets run over by informed flow. The desk measures who is arriving at the book, and charges them a premium when the answer is someone who knows something. Four states, two signals, no discretion.</p>
+  </div>
+
+  <section>
+    <div class="lbl">The two signals, sampled every 250 ms</div>
+    <div class="cols">
+      <div class="card">
+        <div class="lbl inline">Order flow imbalance (OFI)</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          Net aggressive buy minus sell volume, normalized to a z-score over a 20-tick window.
+          Positive means informed buyers are lifting offers; negative means sellers are hitting bids.
+          The quoting gate sits at +2.00, the emergency pull at +3.50.
+        </p>
+      </div>
+      <div class="card">
+        <div class="lbl inline">Trade intensity</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          The z-score of taker volume arrival against its 20-tick baseline.
+          It catches velocity bursts before they have a direction.
+          The widening gate sits at +1.50.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl">The four states</div>
+    <div class="cols">
+      <div class="card">
+        <div class="lbl inline">Quoting</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          Balanced flow. Six symmetric maker quotes rest on each side of the microprice,
+          skewed up to 1.2 bps to pull inventory toward target. This is where the desk
+          spends about 84 percent of its session.
+        </p>
+      </div>
+      <div class="card">
+        <div class="lbl inline">Widening</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          Velocity burst without direction. Both bands widen 0.8 bps so the desk keeps
+          quoting while the burst passes. Fill quality is protected before it can degrade.
+        </p>
+      </div>
+      <div class="card">
+        <div class="lbl inline">Stepping back</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          Informed flow identified on one side. That side moves out 4 bps and halves size
+          instead of leaving: the desk stays present and charges the toxic flow a premium.
+          The quiet side tightens to keep the book balanced.
+        </p>
+      </div>
+      <div class="card">
+        <div class="lbl inline">Pulled</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          Extreme flow past +3.50 z. The fenced side cancels entirely. This is the emergency
+          brake, reserved for the worst tape. It fires rarely and resumes as soon as flow
+          drops back under the exit gate.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl">Evidence: recorded Binance USDT-M tape, 618 seconds, $800 bankroll</div>
+    <div class="card table-wrap">
+      <table>
+        <thead>
+          <tr><th>Configuration</th><th class="num">Volume</th><th class="num">Net PnL</th><th class="num">MaxDD</th><th>Desk time</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Naive, no guard</td><td class="num">$7,001</td><td class="num">-$1.74</td><td class="num">$3.33</td><td>quoting 100%</td></tr>
+          <tr><td>Binary pull</td><td class="num">$6,033</td><td class="num">-$1.31</td><td class="num">$2.79</td><td>quoting 84%, widened 6%, pulled 9%</td></tr>
+          <tr><td>Step-back</td><td class="num">$6,521</td><td class="num">-$1.57</td><td class="num">$2.75</td><td>quoting 82%, widened 6%, stepped 10%, pulled 1%</td></tr>
+          <tr><td>Step-back plus microprice</td><td class="num">$6,002</td><td class="num">-$1.05</td><td class="num">$2.47</td><td>quoting 82%, widened 6%, stepped 10%, pulled 1%</td></tr>
+          <tr><td>Full suite, plus recycling</td><td class="num">$7,170</td><td class="num">-$1.74</td><td class="num">$2.02</td><td>quoting 82%, widened 6%, stepped 10%, pulled 1%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px;font-size:12.5px;color:var(--muted);text-wrap:pretty">
+      Real recorded Binance USDT-M perpetual depth, 20 levels a side, resampled to the 250 ms tick.
+      Fills use the recorded book sweep, so the desk only trades when the tape actually reaches its
+      quotes. The guard beats the naive baseline at every maker fee from minus one to plus two basis
+      points, and the microprice variant is the best configuration. Losses are small on a calm window,
+      which is honest: a thin maker spread plus a rebate is the path to profit, not one quiet session.
+      A deliberately harsher stress tape, where the guard cuts losses 46 percent, is in the README.
+    </p>
+  </section>
+
+  <section>
+    <div class="lbl">Why quoting the mid is not enough</div>
+    <div class="card">
+      <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+        The desk centers on the microprice, the touch weighted by opposite size, not the naive mid.
+        A thin ask pulls fair value up before the mid moves, so quotes anticipate the pressure
+        instead of reacting to it afterward. Inventory recycling then sizes up the de-risking side,
+        so round trips complete instead of accumulating one-sided exposure.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Read-only view of the Hummingbot controller state.</span>
+    <span>Benchmark <span class="fig">8 seeds, matched paths</span></span>
+    <span>Controller <span class="fig">v0.9.0</span></span>
+  </footer>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var clockEl=document.getElementById("clock");
+  if (clockEl){
+    function tickClock(){
+      var d=new Date(),p=function(n){return String(n).padStart(2,"0");};
+      clockEl.textContent=p(d.getUTCHours())+":"+p(d.getUTCMinutes())+":"+p(d.getUTCSeconds())+" UTC";
+    }
+    tickClock(); setInterval(tickClock,1000);
+  }
+})();
+</script>
+</body>
+</html>

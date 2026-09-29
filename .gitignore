@@ -1,0 +1,29 @@
+# Recorded market tape: large, regenerable from the parquet reader.
+tape/
+state_replay/
+
+# Generated session output: regenerable by run_session.py, not source.
+state/
+
+# Secrets: never commit these
+.env
+.env.*
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Node
+node_modules/
+package-lock.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel

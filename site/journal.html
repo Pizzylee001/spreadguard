@@ -1,0 +1,138 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Decision journal - SpreadGuard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Lexend:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<a class="skip" href="#main">Skip to journal</a>
+
+<header>
+  <div class="navpill">
+    <a class="nm" href="desk.html">SpreadGuard <small>BTC-USDT perpetual</small></a>
+    <nav aria-label="Desk routes">
+      <a href="desk.html">Live desk</a>
+      <a href="journal.html" aria-current="page">Decision journal</a>
+      <a href="limits.html">Risk limits</a>
+      <a href="strategy.html">How it decides</a>
+    </nav>
+    <span class="feed" id="feed"><span class="beacon" aria-hidden="true"></span> Feed live, 250 ms</span>
+  </div>
+</header>
+
+<main id="main">
+  <div class="pagehead">
+    <div class="eyebrow">AUDIT RECORD</div>
+    <h1>Decision journal</h1>
+    <p>Every state change the controller made, why it fired, and the reading that tripped it. The desk writes one line per decision, newest first. This page shows the full session.</p>
+  </div>
+
+  <div class="state" style="padding:22px 24px;margin-bottom:34px">
+    <div class="meta" style="margin:0;padding:0;border:0;gap:36px">
+      <span>Entries today <b id="count">41</b></span>
+      <span>Last decision <b>14:02:18.204</b></span>
+      <span>Session open <b>14:00:04.010</b></span>
+      <span>States fired <b>Pull 9, Widen 14, Quote 18</b></span>
+    </div>
+  </div>
+
+  <div class="switches" style="margin-bottom:24px" role="group" aria-label="Filter by state">
+    <button class="sw" type="button" data-filter="ALL" aria-pressed="true">All</button>
+    <button class="sw" type="button" data-filter="PULL" aria-pressed="false">Pulled</button>
+    <button class="sw" type="button" data-filter="STEP_BACK" aria-pressed="false">Stepped back</button>
+    <button class="sw" type="button" data-filter="WIDEN" aria-pressed="false">Widened</button>
+    <button class="sw" type="button" data-filter="QUOTE" aria-pressed="false">Quoting</button>
+  </div>
+
+  <section id="entries">
+    <ul class="journal" id="journal-ul">
+      <li data-state="STEP_BACK">
+        <span class="t">14:02:17</span><span class="tag">STEP BACK</span>
+        <span class="txt">Stepped the ask side back 4 bps and halved size. OFI crossed +2.64, so the desk charges informed flow a premium instead of leaving the book.</span>
+        <span class="det">OFI +2.64, intensity +1.81, spread 1.5 bps</span>
+      </li>
+      <li data-state="WIDEN">
+        <span class="t">14:02:16</span><span class="tag">WIDEN</span>
+        <span class="txt">Trade intensity hit +1.81 z. Widened both sides by 0.8 bps to keep fill quality while the burst passed.</span>
+        <span class="det">OFI +1.20, intensity +1.81, spread 2.3 bps</span>
+      </li>
+      <li data-state="QUOTE">
+        <span class="t">14:01:02</span><span class="tag">QUOTE</span>
+        <span class="txt">Flow normalized under +0.80. Returned to symmetric quoting across six levels and re-centered on the mid.</span>
+        <span class="det">OFI +0.31, intensity +0.12, spread 1.4 bps</span>
+      </li>
+      <li data-state="STEP_BACK">
+        <span class="t">14:00:44</span><span class="tag">STEP BACK</span>
+        <span class="txt">Stepped the bid side back 4 bps. OFI +2.11 flagged informed selling, so the desk stopped catching the flow at the touch.</span>
+        <span class="det">OFI +2.11, intensity +1.44, spread 1.6 bps</span>
+      </li>
+      <li data-state="QUOTE">
+        <span class="t">14:00:04</span><span class="tag">QUOTE</span>
+        <span class="txt">Opened the session with symmetric quotes, skewed 0.3 bps to sell because inventory sat long of target.</span>
+        <span class="det">OFI +0.18, intensity +0.09, spread 1.5 bps</span>
+      </li>
+    </ul>
+
+    <div class="empty" id="no-match" hidden>
+      <span class="et">No decisions match this filter</span>
+      <span class="es">This session logged no decisions in that state. Choose another state, or return to All.</span>
+    </div>
+  </section>
+
+  <footer>
+    <span>Read-only view of the Hummingbot controller state.</span>
+    <span>Export <span class="fig">journal.jsonl</span></span>
+    <span>Controller <span class="fig">v0.9.0</span></span>
+  </footer>
+</main>
+
+<p class="sr" id="live-msg" role="status" aria-live="polite"></p>
+
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var clock=document.getElementById("clock");
+  var feed=document.getElementById("feed");
+
+  var clockEl=document.getElementById("clock");
+  if (clockEl){
+    function tickClock(){
+      var d=new Date(),p=function(n){return String(n).padStart(2,"0");};
+      clockEl.textContent=p(d.getUTCHours())+":"+p(d.getUTCMinutes())+":"+p(d.getUTCSeconds())+" UTC";
+    }
+    tickClock(); setInterval(tickClock,1000);
+  }
+
+  var liveMsg=document.getElementById("live-msg");
+  var rows = Array.prototype.slice.call(document.querySelectorAll("#journal-ul li"));
+  var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-filter]"));
+  var noMatch = document.getElementById("no-match");
+  var countEl = document.getElementById("count");
+
+  buttons.forEach(function(btn){
+    btn.addEventListener("click",function(){
+      var f = btn.dataset.filter;
+      buttons.forEach(function(b){ b.setAttribute("aria-pressed", b===btn?"true":"false"); });
+      var shown = 0;
+      rows.forEach(function(r){
+        var match = (f==="ALL") || (r.dataset.state===f);
+        r.hidden = !match;
+        if (match) shown++;
+      });
+      noMatch.hidden = shown>0;
+      if (countEl) countEl.textContent = String(shown);
+      var label = btn.textContent.trim();
+      liveMsg.textContent = "Filtered to " + label + ". " + shown + " entries shown.";
+    });
+  });
+})();
+</script>
+</body>
+</html>

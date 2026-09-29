@@ -1,0 +1,118 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Risk limits - SpreadGuard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Lexend:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<a class="skip" href="#main">Skip to limits</a>
+
+<header>
+  <div class="navpill">
+    <a class="nm" href="desk.html">SpreadGuard <small>BTC-USDT perpetual</small></a>
+    <nav aria-label="Desk routes">
+      <a href="desk.html">Live desk</a>
+      <a href="journal.html">Decision journal</a>
+      <a href="limits.html" aria-current="page">Risk limits</a>
+      <a href="strategy.html">How it decides</a>
+    </nav>
+    <span class="feed" id="feed"><span class="beacon" aria-hidden="true"></span> Feed live, 250 ms</span>
+  </div>
+</header>
+
+<main id="main">
+  <div class="pagehead">
+    <div class="eyebrow">SAFETY ENVELOPE</div>
+    <h1>Risk limits</h1>
+    <p>The desk quotes inside a fixed envelope. Each rule is checked on every tick. When a rule trips, the controller cancels every order and stops quoting until the desk is reset. The watchdog runs in the same process as the quoting loop, so a rule cannot be skipped.</p>
+  </div>
+
+  <section>
+    <div class="lbl">Live limits and current readings</div>
+    <div class="card table-wrap">
+      <table>
+        <thead>
+          <tr><th>Rule</th><th class="num">Threshold</th><th class="num">Current</th><th class="num">Headroom</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Max absolute position</td><td class="num">0.050 BTC</td><td class="num">0.0140 BTC</td><td class="num">72%</td></tr>
+          <tr><td>Daily stop-loss</td><td class="num">-2.5% ($20)</td><td class="num">-0.12%</td><td class="num">95%</td></tr>
+          <tr><td>Stale feed breaker</td><td class="num">800 ms</td><td class="num">22 ms</td><td class="num">97%</td></tr>
+          <tr><td>Max order rate</td><td class="num">4 / s</td><td class="num">1.2 / s</td><td class="num">70%</td></tr>
+          <tr><td>Inventory band</td><td class="num">35% to 65% long</td><td class="num">58% long</td><td class="num">inside</td></tr>
+          <tr><td>Max spread to quote</td><td class="num">6.0 bps</td><td class="num">1.5 bps</td><td class="num">75%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl">How each rule is enforced</div>
+    <div class="cols3">
+      <div class="card">
+        <div class="lbl inline">Position and loss</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          The desk measures net base exposure against the position cap on every tick. Realized plus unrealized loss is tracked from the session open. Crossing either limit cancels all resting orders immediately.
+        </p>
+      </div>
+      <div class="card">
+        <div class="lbl inline">Feed and rate</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          A timestamp on the last exchange tick drives the stale breaker. If the socket goes quiet past 800 ms, quoting stops and the desk waits for a fresh tick. Order sends are rate-limited to four per second.
+        </p>
+      </div>
+      <div class="card">
+        <div class="lbl inline">Inventory and spread</div>
+        <p style="font-size:13.5px;color:var(--text-2);text-wrap:pretty">
+          The desk keeps inventory inside a target band and skews quotes to pull back toward it. When the market spread exceeds six bps, the surface is too thin to quote safely and the desk widens or pulls instead.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl">Trip history, today</div>
+    <div class="card table-wrap">
+      <table>
+        <thead>
+          <tr><th class="num">Time</th><th>Rule</th><th class="num">Reading</th><th>Action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">14:02:18</td><td>Order flow gate</td><td class="num">OFI +2.64</td><td>Pulled ask side</td></tr>
+          <tr><td class="num">14:00:44</td><td>Order flow gate</td><td class="num">OFI +2.11</td><td>Pulled bid side</td></tr>
+          <tr><td class="num">13:41:07</td><td>Inventory band</td><td class="num">68% long</td><td>Skewed quotes to sell</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px;font-size:12.5px;color:var(--muted);text-wrap:pretty">
+      No hard limit has tripped this session. The entries above are soft responses from the state machine, which keeps the desk inside its envelope before a hard stop is needed.
+    </p>
+  </section>
+
+  <footer>
+    <span>Read-only view of the Hummingbot controller state.</span>
+    <span>Watchdog <span class="fig">same process as quoting</span></span>
+    <span>Controller <span class="fig">v0.9.0</span></span>
+  </footer>
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var clockEl=document.getElementById("clock");
+  if (clockEl){
+    function tickClock(){
+      var d=new Date(),p=function(n){return String(n).padStart(2,"0");};
+      clockEl.textContent=p(d.getUTCHours())+":"+p(d.getUTCMinutes())+":"+p(d.getUTCSeconds())+" UTC";
+    }
+    tickClock(); setInterval(tickClock,1000);
+  }
+})();
+</script>
+</body>
+</html>
