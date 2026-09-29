@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Lexend:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -325,6 +326,7 @@
   var midEl=document.getElementById("meta-mid");
   if (window.SG){
     SG.subscribe(function(s){
+      srcEl.textContent = s.source || "spot BTC/USD";
       if (s.status==="live"){
         chip.classList.add("live"); chip.classList.remove("offline");
         priceEl.textContent="$"+SG.fmtUsd(s.price,0);
@@ -332,7 +334,6 @@
           changeEl.textContent=(s.change24h>=0?"+":"")+s.change24h.toFixed(2)+"%";
           changeEl.className="data "+(s.change24h>=0?"up":"down");
         } else { changeEl.textContent=""; changeEl.className="data"; }
-        srcEl.textContent=s.source||"spot BTC/USD";
         if (s.price!=null && midEl){
           midEl.textContent=SG.fmtUsd(s.price,2);
         }
