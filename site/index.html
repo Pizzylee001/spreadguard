@@ -1,0 +1,350 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Live desk - SpreadGuard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Lexend:wght@400;500;600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<a class="skip" href="#main">Skip to desk</a>
+
+<header>
+  <div class="navpill">
+    <a class="nm" href="desk.html">SpreadGuard <small>BTC-USDT perpetual</small></a>
+    <nav aria-label="Desk routes">
+      <a href="desk.html" aria-current="page">Live desk</a>
+      <a href="journal.html">Decision journal</a>
+      <a href="limits.html">Risk limits</a>
+      <a href="strategy.html">How it decides</a>
+    </nav>
+    <span class="feed" id="feed"><span class="beacon" aria-hidden="true"></span> Feed live, 250 ms</span>
+  </div>
+</header>
+
+<main id="main">
+  <div class="topline">
+    <span class="where">Maker desk, read-only view of the Hummingbot controller</span>
+    <span class="right">
+      <span class="live-chip" id="live-chip" title="Live BTC price source">
+        <span class="livedot" id="live-dot" aria-hidden="true"></span>
+        <span class="data" id="live-price">--</span>
+        <span class="data" id="live-change">--</span>
+        <span class="src" id="live-src">spot BTC/USD</span>
+      </span>
+      <span class="clock" id="clock">--:--:-- UTC</span>
+      <span class="switches" role="group" aria-label="Preview state simulator">
+        <button class="sw" id="sim-load" type="button" aria-pressed="false">Loading</button>
+        <button class="sw" id="sim-feed" data-mode="error" type="button" aria-pressed="false">Feed lost</button>
+      </span>
+    </span>
+  </div>
+
+  <div class="state" id="state-card">
+    <span class="shine" aria-hidden="true"></span>
+    <div class="read">
+      <span class="marker" aria-hidden="true"></span>
+      <h2 id="state-name">Quoting</h2>
+    </div>
+    <p class="why" id="state-why">Flow is balanced. Six quotes rest on each side, symmetric around the mid.</p>
+    <div class="meta">
+      <span>Mid <b id="meta-mid">67,415.00</b></span>
+      <span>Spread <b>1.5 bps</b></span>
+      <span>Regime <b id="state-regime">range</b></span>
+      <span>Last action <b id="state-last">14:00:04.010</b></span>
+    </div>
+  </div>
+
+  <div class="switcher" role="radiogroup" aria-label="Quote state">
+    <button class="st" role="radio" aria-checked="true" tabindex="0" data-s="QUOTE" type="button">Quoting</button>
+    <button class="st" role="radio" aria-checked="false" tabindex="-1" data-s="WIDEN" type="button">Widening</button>
+    <button class="st" role="radio" aria-checked="false" tabindex="-1" data-s="STEP_BACK" type="button">Stepping back</button>
+    <button class="st" role="radio" aria-checked="false" tabindex="-1" data-s="PULL" type="button">Pulled</button>
+  </div>
+
+  <section>
+    <div class="lbl">Resting depth, cumulative by price</div>
+    <div class="chart-wrap skeleton" id="chart-wrap">
+      <div class="real">
+        <svg id="profile" viewBox="0 0 720 240" role="img" aria-label="Resting depth by price. Bids build to the left of the mid, asks to the right."></svg>
+        <div class="axis">
+          <span>67,388</span>
+          <span>mid 67,415</span>
+          <span>67,438</span>
+        </div>
+      </div>
+      <div class="loadblock" aria-hidden="true">
+        <div class="sk" style="height:150px"></div>
+        <div class="load-note"><span class="spin" aria-hidden="true"></span> Connecting to the controller, loading the depth book</div>
+      </div>
+    </div>
+    <div class="chart-note" style="margin-top:16px">
+      <span class="k"><span class="key" style="background:rgba(200,148,90,.22);border:1px solid rgba(200,148,90,.6)"></span>Bid liquidity</span>
+      <span class="k"><span class="key" style="background:rgba(242,234,223,.12);border:1px solid rgba(242,234,223,.4)"></span>Ask liquidity</span>
+      <span class="k"><span class="key" style="width:2px;height:10px;border-radius:0;background:var(--text-2)"></span>Our quotes</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl">Flow signals, gated at two standard deviations</div>
+    <div class="cols">
+      <div class="card">
+        <div class="metric" id="m-ofi">
+          <div class="ml"><span class="name">Order flow imbalance</span><span class="val" id="ofi-val">+0.31 z</span></div>
+          <div class="track"><span class="mark" style="left:75%"></span><span class="fill" id="ofi-fill" style="inset-inline-end:84%"></span></div>
+          <span class="note" id="ofi-note">Below the +2.00 gate. No action.</span>
+        </div>
+        <div class="metric" id="m-int">
+          <div class="ml"><span class="name">Trade intensity</span><span class="val" id="int-val">+0.12 z</span></div>
+          <div class="track"><span class="mark" style="left:70%"></span><span class="fill" id="int-fill" style="inset-inline-end:88%"></span></div>
+          <span class="note" id="int-note">Baseline trade rate. No action.</span>
+        </div>
+        <div class="metric">
+          <div class="ml"><span class="name">Realized volatility</span><span class="val">9.1 bps / 5m</span></div>
+          <div class="track"><span class="fill" style="inset-inline-end:36%;background:var(--muted)"></span></div>
+          <span class="note">Parkinson estimate across the last five minutes.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="lbl inline">Recent decisions</div>
+        <ul class="trace">
+          <li><span class="t">14:02:17</span><span class="cond">OFI +2.64 crossed the +2.00 gate</span><span class="tag">STEP BACK</span></li>
+          <li><span class="t">14:02:16</span><span class="cond">Intensity +1.81 z, spread still normal</span><span class="tag">WIDEN</span></li>
+          <li><span class="t">14:01:02</span><span class="cond">OFI fell back under +0.80</span><span class="tag">QUOTE</span></li>
+          <li><span class="t">14:00:44</span><span class="cond">OFI +2.11 crossed the gate</span><span class="tag">STEP BACK</span></li>
+        </ul>
+        <p style="margin-top:18px;font-size:12px;color:var(--muted)">
+          Full record in the <a href="journal.html" style="color:var(--tan)">decision journal</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Read-only view of the Hummingbot controller state.</span>
+    <span>Snapshot <span class="fig">14:02:19.440 UTC</span></span>
+    <span>Controller <span class="fig">v0.9.0</span></span>
+  </footer>
+</main>
+
+<p class="sr" id="live-msg" role="status" aria-live="polite"></p>
+
+<script src="live.js"></script>
+<script>
+(function(){
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var userTouched = false;
+
+  var MID = 67415.00;
+  var askDefs = [
+    {px:67418.50,sz:0.025},{px:67420.00,sz:0.045},{px:67422.50,sz:0.082},
+    {px:67426.00,sz:0.061},{px:67431.00,sz:0.104},{px:67438.50,sz:0.148}
+  ];
+  var bidDefs = [
+    {px:67412.00,sz:0.040},{px:67409.50,sz:0.065},{px:67407.00,sz:0.068},
+    {px:67402.00,sz:0.089},{px:67396.50,sz:0.121},{px:67388.00,sz:0.157}
+  ];
+
+  var STATES = {
+    QUOTE:{ name:"Quoting", regime:"range", last:"14:00:04.010",
+      why:"Flow is balanced. Six quotes rest on each side, symmetric around the mid.",
+      ask:askDefs, bid:bidDefs,
+      ofi:"+0.31 z",ofiPct:84,ofiNote:"Below the +2.00 gate. No action.",hot:false,
+      int:"+0.12 z",intPct:88,intNote:"Baseline trade rate. No action." },
+    WIDEN:{ name:"Widening", regime:"volatility building", last:"14:02:16.119",
+      why:"Trade intensity rose past +1.50 z. Both sides widened 0.8 bps to protect fill quality without leaving the book.",
+      ask:askDefs.map(function(l){return {px:l.px+1.1,sz:l.sz*0.72};}),
+      bid:bidDefs.map(function(l){return {px:l.px-1.1,sz:l.sz*0.72};}),
+      ofi:"+1.24 z",ofiPct:55,ofiNote:"Approaching the gate. Watching closely.",hot:false,
+      int:"+1.81 z",intPct:40,intNote:"Above the +1.50 widen gate. Band widened." },
+    STEP_BACK:{ name:"Stepping back", regime:"volatility expansion", last:"14:02:17.512",
+      why:"Order flow imbalance crossed +2.00. The ask side stepped back 4 bps and halved size instead of leaving. The desk stays in the book.",
+      ask:askDefs.map(function(l,i){return i<3 ? {px:l.px+2.70,sz:l.sz*0.5} : {px:l.px,sz:l.sz};}),
+      bid:bidDefs,
+      ofi:"+2.64 z",ofiPct:14,ofiNote:"Past +2.00. Informed flow on the tape.",hot:true,
+      int:"+1.81 z",intPct:40,intNote:"Sustained burst through the step-back window." },
+    PULL:{ name:"Pulled", regime:"extreme flow", last:"14:02:18.204",
+      why:"Order flow imbalance crossed +3.50. The desk pulled the ask side completely to stop adverse fills.",
+      ask:askDefs.map(function(l){return {px:l.px,sz:0};}),
+      bid:bidDefs,
+      ofi:"+3.81 z",ofiPct:8,ofiNote:"Past +3.50. Emergency pull.",hot:true,
+      int:"+2.10 z",intPct:28,intNote:"Extreme velocity through the pull window." }
+  };
+  var state = "QUOTE";
+
+  var svg = document.getElementById("profile");
+  var NS = "http://www.w3.org/2000/svg";
+  var VB_W = 720, baseY = 214, topY = 26, centerX = VB_W/2, halfW = 318;
+
+  function el(tag, attrs){
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    return n;
+  }
+  function cumulativeSeries(levels, side){
+    var ordered = levels.slice().sort(function(a,b){ return Math.abs(a.px-MID)-Math.abs(b.px-MID); });
+    var cum = 0, pts = [];
+    ordered.forEach(function(l){
+      cum += l.sz;
+      var mine = side==="ask" ? l.px <= 67422.5 : l.px >= 67407.0;
+      pts.push({dist:Math.abs(l.px-MID), cum:cum, mine:mine});
+    });
+    return pts;
+  }
+  function drawProfile(){
+    svg.innerHTML = "";
+    var S = STATES[state];
+    var bid = cumulativeSeries(S.bid, "bid");
+    var ask = cumulativeSeries(S.ask, "ask");
+    var maxCum = Math.max(1e-9, bid.length?bid[bid.length-1].cum:0, ask.length?ask[ask.length-1].cum:0);
+    var maxDist = 28;
+    function xFor(d){ return (d/maxDist)*halfW; }
+    function yFor(c){ return baseY - (c/maxCum)*(baseY-topY); }
+
+    svg.appendChild(el("line",{x1:0,y1:baseY,x2:VB_W,y2:baseY,stroke:"#3A2E25","stroke-width":1}));
+    function area(pts, dir){
+      if (!pts.length) return null;
+      var sorted = pts.slice().sort(function(a,b){ return b.dist-a.dist; });
+      var d = ["M "+centerX+" "+baseY];
+      sorted.forEach(function(pt){ d.push("L "+(centerX+dir*xFor(pt.dist)).toFixed(2)+" "+yFor(pt.cum).toFixed(2)); });
+      d.push("L "+centerX+" "+baseY); d.push("Z");
+      return d.join(" ");
+    }
+    var askPath = area(ask, 1);
+    if (askPath) svg.appendChild(el("path",{d:askPath,fill:"rgba(242,234,223,0.11)",stroke:"rgba(242,234,223,0.38)","stroke-width":1.2}));
+    var bidPath = area(bid, -1);
+    if (bidPath) svg.appendChild(el("path",{d:bidPath,fill:"rgba(200,148,90,0.20)",stroke:"rgba(200,148,90,0.7)","stroke-width":1.2}));
+
+    function ticks(pts, dir){
+      pts.forEach(function(pt){
+        var x = centerX + dir*xFor(pt.dist);
+        if (Math.abs(x-centerX) > halfW) return;
+        var line = el("line",{x1:x,y1:yFor(pt.cum)-6,x2:x,y2:yFor(pt.cum)+6,stroke:"#C9BCA9","stroke-width":1.4});
+        if (!pt.mine) line.setAttribute("opacity","0.3");
+        svg.appendChild(line);
+      });
+    }
+    ticks(bid,-1); ticks(ask,1);
+    svg.appendChild(el("line",{x1:centerX,y1:topY-8,x2:centerX,y2:baseY+8,stroke:"#4A3B2F","stroke-width":1,"stroke-dasharray":"3 4"}));
+  }
+  drawProfile();
+
+  var stateName=document.getElementById("state-name");
+  var stateWhy=document.getElementById("state-why");
+  var stateRegime=document.getElementById("state-regime");
+  var stateLast=document.getElementById("state-last");
+  var liveMsg=document.getElementById("live-msg");
+  var ofiVal=document.getElementById("ofi-val"),ofiFill=document.getElementById("ofi-fill"),ofiNote=document.getElementById("ofi-note"),mOfi=document.getElementById("m-ofi");
+  var intVal=document.getElementById("int-val"),intFill=document.getElementById("int-fill"),intNote=document.getElementById("int-note"),mInt=document.getElementById("m-int");
+
+  function setState(key, announce){
+    state = key;
+    var S = STATES[key];
+    stateName.textContent = S.name;
+    stateWhy.textContent = S.why;
+    stateRegime.textContent = S.regime;
+    stateLast.textContent = S.last;
+    document.querySelectorAll(".switcher .st").forEach(function(b){
+      var on = b.dataset.s===key;
+      b.setAttribute("aria-checked", on?"true":"false");
+      b.tabIndex = on ? 0 : -1;
+    });
+    drawProfile();
+    ofiVal.textContent=S.ofi; ofiFill.style.insetInlineEnd=S.ofiPct+"%"; ofiNote.textContent=S.ofiNote;
+    mOfi.classList.toggle("hot",S.hot);
+    intVal.textContent=S.int; intFill.style.insetInlineEnd=S.intPct+"%"; intNote.textContent=S.intNote;
+    mInt.classList.toggle("hot",S.hot);
+    if (announce) liveMsg.textContent = "State changed to "+S.name+". "+S.why;
+  }
+
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".switcher .st"));
+  var switcher = document.querySelector(".switcher");
+  switcher.addEventListener("click",function(e){
+    var b=e.target.closest("[data-s]"); if (!b) return;
+    userTouched = true; setState(b.dataset.s, true); b.focus();
+  });
+  switcher.addEventListener("keydown",function(e){
+    var i = tabs.indexOf(document.activeElement); if (i<0) return;
+    var n=-1;
+    if (e.key==="ArrowRight"||e.key==="ArrowDown") n=(i+1)%tabs.length;
+    else if (e.key==="ArrowLeft"||e.key==="ArrowUp") n=(i-1+tabs.length)%tabs.length;
+    else if (e.key==="Home") n=0;
+    else if (e.key==="End") n=tabs.length-1;
+    if (n>=0){ e.preventDefault(); userTouched=true; setState(tabs[n].dataset.s, true); tabs[n].focus(); }
+  });
+
+  var clock=document.getElementById("clock");
+  function tickClock(){
+    var d=new Date(),p=function(n){return String(n).padStart(2,"0");};
+    clock.textContent=p(d.getUTCHours())+":"+p(d.getUTCMinutes())+":"+p(d.getUTCSeconds())+" UTC";
+  }
+  tickClock(); setInterval(tickClock,1000);
+
+  var loadBtn=document.getElementById("sim-load");
+  var chartWrap=document.getElementById("chart-wrap");
+  loadBtn.addEventListener("click",function(){
+    var on=loadBtn.getAttribute("aria-pressed")==="true";
+    loadBtn.setAttribute("aria-pressed",on?"false":"true");
+    chartWrap.classList.toggle("is-loading",!on);
+    chartWrap.querySelector(".real").setAttribute("aria-busy", !on?"true":"false");
+  });
+
+  var feedBtn=document.getElementById("sim-feed");
+  var feedEl=document.getElementById("feed");
+  feedBtn.addEventListener("click",function(){
+    var on=feedBtn.getAttribute("aria-pressed")==="true";
+    feedBtn.setAttribute("aria-pressed",on?"false":"true");
+    var lost=!on;
+    feedEl.classList.toggle("lost",lost);
+    feedEl.innerHTML = lost
+      ? '<span class="beacon" aria-hidden="true"></span> Feed lost, 812 ms'
+      : '<span class="beacon" aria-hidden="true"></span> Feed live, 250 ms';
+    liveMsg.textContent = lost ? "Feed lost at the exchange socket. Quoting stopped." : "Feed restored.";
+  });
+
+  setState("QUOTE", false);
+  if (!reduce){
+    var order=["QUOTE","WIDEN","STEP_BACK","PULL"],oi=0;
+    var cycle = setInterval(function(){
+      if (userTouched){ clearInterval(cycle); return; }
+      oi=(oi+1)%order.length; setState(order[oi], false);
+    },5600);
+  }
+
+  // ---- live BTC price binds the chip and the mid in the state card ----
+  var chip=document.getElementById("live-chip");
+  var dot=document.getElementById("live-dot");
+  var priceEl=document.getElementById("live-price");
+  var changeEl=document.getElementById("live-change");
+  var srcEl=document.getElementById("live-src");
+  var midEl=document.getElementById("meta-mid");
+  if (window.SG){
+    SG.subscribe(function(s){
+      if (s.status==="live"){
+        chip.classList.add("live"); chip.classList.remove("offline");
+        priceEl.textContent="$"+SG.fmtUsd(s.price,0);
+        if (s.change24h!=null){
+          changeEl.textContent=(s.change24h>=0?"+":"")+s.change24h.toFixed(2)+"%";
+          changeEl.className="data "+(s.change24h>=0?"up":"down");
+        }
+        if (s.price!=null && midEl){
+          midEl.textContent=SG.fmtUsd(s.price,2);
+        }
+      } else if (s.status==="offline"){
+        chip.classList.add("offline"); chip.classList.remove("live");
+        priceEl.textContent="offline";
+        changeEl.textContent=""; changeEl.className="data";
+        srcEl.textContent="feed unreachable";
+      }
+    });
+    SG.start(30000);
+  }
+})();
+</script>
+</body>
+</html>
