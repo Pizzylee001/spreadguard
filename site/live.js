@@ -81,3 +81,7 @@ const SG = (() => {
 
   return { state, subscribe, start, fmtUsd };
 })();
+
+// Expose on window explicitly. A top-level `const` in a classic script does
+// not become a window property, so a separate inline script cannot see it.
+window.SG = SG;
