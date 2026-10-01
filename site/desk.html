@@ -71,10 +71,10 @@
     <div class="chart-wrap skeleton" id="chart-wrap">
       <div class="real">
         <svg id="profile" viewBox="0 0 720 240" role="img" aria-label="Resting depth by price. Bids build to the left of the mid, asks to the right."></svg>
-        <div class="axis">
-          <span>67,388</span>
-          <span>mid 67,415</span>
-          <span>67,438</span>
+<div class="axis">
+          <span id="axis-lo">67,388</span>
+          <span id="axis-mid">mid 67,415</span>
+          <span id="axis-hi">67,438</span>
         </div>
       </div>
       <div class="loadblock" aria-hidden="true">
@@ -141,41 +141,65 @@
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   var userTouched = false;
 
-  var MID = 67415.00;
-  var askDefs = [
+var BASE_MID = 67415.00;
+  var MID = BASE_MID; // becomes the live price when the feed lands
+  var baseAsks = [
     {px:67418.50,sz:0.025},{px:67420.00,sz:0.045},{px:67422.50,sz:0.082},
     {px:67426.00,sz:0.061},{px:67431.00,sz:0.104},{px:67438.50,sz:0.148}
   ];
-  var bidDefs = [
+  var baseBids = [
     {px:67412.00,sz:0.040},{px:67409.50,sz:0.065},{px:67407.00,sz:0.068},
     {px:67402.00,sz:0.089},{px:67396.50,sz:0.121},{px:67388.00,sz:0.157}
   ];
+  function shifted(levels, mid){
+    var off = mid - BASE_MID;
+    return levels.map(function(l){ return {px: l.px + off, sz: l.sz}; });
+  }
+  function currentAskDefs(){ return shifted(baseAsks, MID); }
+  function currentBidDefs(){ return shifted(baseBids, MID); }
+  function sdefs(name, regime, last, why, askFn, bidFn, o, hot, i){
+    return { name:name, regime:regime, last:last, why:why,
+      ask: askFn(currentAskDefs()), bid: bidFn(currentBidDefs()),
+      ofi:o.ofi, ofiPct:o.ofiPct, ofiNote:o.ofiNote,
+      int:i.int, intPct:i.intPct, intNote:i.intNote, hot:hot };
+  }
+  function widenAsk(a){ return a.map(function(l){return {px:l.px+1.1,sz:l.sz*0.72};}); }
+  function widenBid(b){ return b.map(function(l){return {px:l.px-1.1,sz:l.sz*0.72};}); }
+  function stepAsk(a){ return a.map(function(l,i){return i<3 ? {px:l.px+2.70,sz:l.sz*0.5} : l;}); }
+  function id_ask(a){ return a; }
+  function id_bid(b){ return b; }
+  function zeroAsk(a){ return a.map(function(l){return {px:l.px,sz:0};}); }
 
-  var STATES = {
-    QUOTE:{ name:"Quoting", regime:"range", last:"14:00:04.010",
-      why:"Flow is balanced. Six quotes rest on each side, symmetric around the mid.",
-      ask:askDefs, bid:bidDefs,
-      ofi:"+0.31 z",ofiPct:84,ofiNote:"Below the +2.00 gate. No action.",hot:false,
-      int:"+0.12 z",intPct:88,intNote:"Baseline trade rate. No action." },
-    WIDEN:{ name:"Widening", regime:"volatility building", last:"14:02:16.119",
-      why:"Trade intensity rose past +1.50 z. Both sides widened 0.8 bps to protect fill quality without leaving the book.",
-      ask:askDefs.map(function(l){return {px:l.px+1.1,sz:l.sz*0.72};}),
-      bid:bidDefs.map(function(l){return {px:l.px-1.1,sz:l.sz*0.72};}),
-      ofi:"+1.24 z",ofiPct:55,ofiNote:"Approaching the gate. Watching closely.",hot:false,
-      int:"+1.81 z",intPct:40,intNote:"Above the +1.50 widen gate. Band widened." },
-    STEP_BACK:{ name:"Stepping back", regime:"volatility expansion", last:"14:02:17.512",
-      why:"Order flow imbalance crossed +2.00. The ask side stepped back 4 bps and halved size instead of leaving. The desk stays in the book.",
-      ask:askDefs.map(function(l,i){return i<3 ? {px:l.px+2.70,sz:l.sz*0.5} : {px:l.px,sz:l.sz};}),
-      bid:bidDefs,
-      ofi:"+2.64 z",ofiPct:14,ofiNote:"Past +2.00. Informed flow on the tape.",hot:true,
-      int:"+1.81 z",intPct:40,intNote:"Sustained burst through the step-back window." },
-    PULL:{ name:"Pulled", regime:"extreme flow", last:"14:02:18.204",
-      why:"Order flow imbalance crossed +3.50. The desk pulled the ask side completely to stop adverse fills.",
-      ask:askDefs.map(function(l){return {px:l.px,sz:0};}),
-      bid:bidDefs,
-      ofi:"+3.81 z",ofiPct:8,ofiNote:"Past +3.50. Emergency pull.",hot:true,
-      int:"+2.10 z",intPct:28,intNote:"Extreme velocity through the pull window." }
+  var O = {
+    QUOTE:{ofi:"+0.31 z",ofiPct:84,ofiNote:"Below the +2.00 gate. No action."},
+    WIDEN:{ofi:"+1.24 z",ofiPct:55,ofiNote:"Approaching the gate. Watching closely."},
+    STEP_BACK:{ofi:"+2.64 z",ofiPct:14,ofiNote:"Past +2.00. Informed flow on the tape."},
+    PULL:{ofi:"+3.81 z",ofiPct:8,ofiNote:"Past +3.50. Emergency pull."}
   };
+  var I = {
+    QUOTE:{int:"+0.12 z",intPct:88,intNote:"Baseline trade rate. No action."},
+    WIDEN:{int:"+1.81 z",intPct:40,intNote:"Above the +1.50 widen gate. Band widened."},
+    STEP_BACK:{int:"+1.81 z",intPct:40,intNote:"Sustained burst through the step-back window."},
+    PULL:{int:"+2.10 z",intPct:28,intNote:"Extreme velocity through the pull window."}
+  };
+
+  function buildStates(){
+    return {
+      QUOTE: sdefs("Quoting","range","14:00:04.010",
+        "Flow is balanced. Six quotes rest on each side, symmetric around the mid.",
+        id_ask, id_bid, O.QUOTE, false, I.QUOTE),
+      WIDEN: sdefs("Widening","volatility building","14:02:16.119",
+        "Trade intensity rose past +1.50 z. Both sides widened 0.8 bps to protect fill quality without leaving the book.",
+        widenAsk, widenBid, O.WIDEN, false, I.WIDEN),
+      STEP_BACK: sdefs("Stepping back","volatility expansion","14:02:17.512",
+        "Order flow imbalance crossed +2.00. The ask side stepped back 4 bps and halved size instead of leaving. The desk stays in the book.",
+        stepAsk, id_bid, O.STEP_BACK, true, I.STEP_BACK),
+      PULL: sdefs("Pulled","extreme flow","14:02:18.204",
+        "Order flow imbalance crossed +3.50. The desk pulled the ask side completely to stop adverse fills.",
+        zeroAsk, id_bid, O.PULL, true, I.PULL)
+    };
+  }
+  var STATES = buildStates();
   var state = "QUOTE";
 
   var svg = document.getElementById("profile");
@@ -187,12 +211,13 @@
     for (var k in attrs) n.setAttribute(k, attrs[k]);
     return n;
   }
-  function cumulativeSeries(levels, side){
+function cumulativeSeries(levels, side){
     var ordered = levels.slice().sort(function(a,b){ return Math.abs(a.px-MID)-Math.abs(b.px-MID); });
     var cum = 0, pts = [];
     ordered.forEach(function(l){
       cum += l.sz;
-      var mine = side==="ask" ? l.px <= 67422.5 : l.px >= 67407.0;
+      // our own quoted levels are the closest three on each side
+      var mine = ordered.indexOf(l) < 3;
       pts.push({dist:Math.abs(l.px-MID), cum:cum, mine:mine});
     });
     return pts;
@@ -232,6 +257,13 @@
     }
     ticks(bid,-1); ticks(ask,1);
     svg.appendChild(el("line",{x1:centerX,y1:topY-8,x2:centerX,y2:baseY+8,stroke:"#4A3B2F","stroke-width":1,"stroke-dasharray":"3 4"}));
+
+    // axis labels follow the live mid
+    var fmt = function(v){ return Math.round(v).toLocaleString("en-US"); };
+    var lo = document.getElementById("axis-lo"), midEl = document.getElementById("axis-mid"), hi = document.getElementById("axis-hi");
+    if (lo) lo.textContent = fmt(MID - 27);
+    if (midEl) midEl.textContent = "mid " + fmt(MID);
+    if (hi) hi.textContent = fmt(MID + 27);
   }
   drawProfile();
 
@@ -334,8 +366,13 @@
           changeEl.textContent=(s.change24h>=0?"+":"")+s.change24h.toFixed(2)+"%";
           changeEl.className="data "+(s.change24h>=0?"up":"down");
         } else { changeEl.textContent=""; changeEl.className="data"; }
-        if (s.price!=null && midEl){
-          midEl.textContent=SG.fmtUsd(s.price,2);
+        if (s.price!=null){
+          // anchor the whole depth book to the live price so the chart,
+          // the axis, and the state card all agree
+          MID = s.price;
+          STATES = buildStates();
+          if (midEl) midEl.textContent=SG.fmtUsd(s.price,2);
+          drawProfile();
         }
       } else if (s.status==="offline"){
         chip.classList.add("offline"); chip.classList.remove("live");
